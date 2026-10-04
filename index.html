@@ -58,18 +58,29 @@ else if(c===0x81){$('lim').textContent=f[9];$('cur').textContent=f[6];log('← �
 else if(c===0x82){const sp=(f[8]<<8)|f[9],vo=(f[11]<<8)|f[12];$('spd').textContent=(sp/10).toFixed(1);$('soc').textContent=f[10];$('volt').textContent=(vo/10).toFixed(1);$('gear').textContent=f[7];$('raw').textContent='raw: скорость '+sp+', напряж. '+vo+', статус '+f[16]+', ошибка '+f[17]}
 else log('← '+hex(f))}
 $('con').onclick=async()=>{
-if(!navigator.bluetooth){$('st').textContent='Нет Web Bluetooth. На iPhone открой эту страницу в браузере Bluefy.';return}
-try{$('st').textContent='Поиск...';
+const st=t=>{$('st').textContent=t;log(t)};
+const er=e=>[e&&e.name,e&&e.message,String(e)].filter(Boolean).join(' | ');
+if(!navigator.bluetooth){st('Нет Web Bluetooth. Открой страницу в Bluefy.');return}
+let step='поиск';
+try{st('Поиск...');
 dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[0xFFE0,0xFFE5,0xFFB0,0xFFF0]});
-dev.addEventListener('gattserverdisconnected',()=>{clearInterval(tm);$('st').textContent='Отключено';$('set').disabled=true;wch=null});
+log('выбрано: '+dev.name);
+dev.addEventListener('gattserverdisconnected',()=>{clearInterval(tm);st('Отключено');$('set').disabled=true;wch=null});
+step='подключение GATT';st('Подключение...');
 const srv=await dev.gatt.connect();
+step='список сервисов';
+try{for(const s of await srv.getPrimaryServices()){const cs=await s.getCharacteristics();log('сервис '+s.uuid.slice(4,8)+': '+cs.map(c=>c.uuid.slice(4,8)).join(', '))}}catch(e){log('сервисы: '+er(e))}
+step='сервис FFE0/FFE4';
 rch=await(await srv.getPrimaryService(0xFFE0)).getCharacteristic(0xFFE4);
+step='сервис FFE5/FFE9';
 wch=await(await srv.getPrimaryService(0xFFE5)).getCharacteristic(0xFFE9);
+step='уведомления';
 await rch.startNotifications();rch.addEventListener('characteristicvaluechanged',e=>onData(e.target.value));
-$('st').textContent='Подключено: '+dev.name;$('set').disabled=false;
+st('Подключено: '+dev.name);$('set').disabled=false;
+step='первые запросы';
 await send(0x80);await new Promise(r=>setTimeout(r,300));await send(0x81);
 tm=setInterval(()=>send(0x82,[],true),300);
-}catch(e){$('st').textContent='Ошибка: '+e.message;log(e.stack||e.message)}};
+}catch(e){st('Ошибка на шаге «'+step+'»: '+er(e))}};
 $('set').onclick=async()=>{const k=Math.round(+$('v').value);if(!(k>=5&&k<=50))return;
 if(!confirm('Отправить лимит '+k+' км/ч?'))return;const v=k*10;
 await send(0x72,[(v>>8)&255,v&255]);setTimeout(()=>send(0x81),700)};
