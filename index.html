@@ -63,7 +63,9 @@ const er=e=>[e&&e.name,e&&e.message,String(e)].filter(Boolean).join(' | ');
 if(!navigator.bluetooth){st('Нет Web Bluetooth. Открой страницу в Bluefy.');return}
 let step='поиск';
 try{st('Поиск...');
-dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[0xFFE0,0xFFE5,0xFFB0,0xFFF0]});
+const U=n=>'0000'+n+'-0000-1000-8000-00805f9b34fb',sv=['ffe0','ffe5','ffb0','fff0'].map(U);
+dev=null;for(const o of [{acceptAllDevices:true,optionalServices:sv},{filters:[{namePrefix:'Yolin'}],optionalServices:sv},{acceptAllDevices:true}]){try{dev=await navigator.bluetooth.requestDevice(o);log('поиск сработал: '+Object.keys(o).join('+'));break}catch(e){log('вариант '+Object.keys(o).join('+')+' → '+er(e));if(e&&e.name==='NotFoundError')throw e}}
+if(!dev)throw 'ни один вариант поиска не сработал';
 log('выбрано: '+dev.name);
 dev.addEventListener('gattserverdisconnected',()=>{clearInterval(tm);st('Отключено');$('set').disabled=true;wch=null});
 step='подключение GATT';st('Подключение...');
@@ -71,9 +73,9 @@ const srv=await dev.gatt.connect();
 step='список сервисов';
 try{for(const s of await srv.getPrimaryServices()){const cs=await s.getCharacteristics();log('сервис '+s.uuid.slice(4,8)+': '+cs.map(c=>c.uuid.slice(4,8)).join(', '))}}catch(e){log('сервисы: '+er(e))}
 step='сервис FFE0/FFE4';
-rch=await(await srv.getPrimaryService(0xFFE0)).getCharacteristic(0xFFE4);
+rch=await(await srv.getPrimaryService(U('ffe0'))).getCharacteristic(U('ffe4'));
 step='сервис FFE5/FFE9';
-wch=await(await srv.getPrimaryService(0xFFE5)).getCharacteristic(0xFFE9);
+wch=await(await srv.getPrimaryService(U('ffe5'))).getCharacteristic(U('ffe9'));
 step='уведомления';
 await rch.startNotifications();rch.addEventListener('characteristicvaluechanged',e=>onData(e.target.value));
 st('Подключено: '+dev.name);$('set').disabled=false;
